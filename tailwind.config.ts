@@ -14,7 +14,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        heading: ["'Space Grotesk'", "sans-serif"],
+        heading: ["'Inter'", "sans-serif"],
         body: ["'Inter'", "sans-serif"],
       },
       colors: {
@@ -46,6 +46,10 @@ export default {
         warning: {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
@@ -88,6 +92,10 @@ export default {
           "0%, 100%": { opacity: "0.4" },
           "50%": { opacity: "1" },
         },
+        "hover-lift": {
+          "0%": { transform: "translateY(0)" },
+          "100%": { transform: "translateY(-2px)" }
+        }
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",

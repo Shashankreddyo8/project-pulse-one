@@ -6,54 +6,57 @@
 
 @layer base {
   :root {
-    --background: 222 47% 11%;
+    --background: 220 49% 8%; /* #0B1220 */
     --foreground: 215 20% 75%;
 
-    --card: 217 33% 17%;
+    --card: 217 44% 15%; /* #162338 */
     --card-foreground: 215 20% 75%;
 
-    --popover: 217 33% 17%;
+    --popover: 217 44% 15%;
     --popover-foreground: 215 20% 75%;
 
-    --primary: 187 72% 61%;
-    --primary-foreground: 222 47% 11%;
+    --primary: 198 78% 64%; /* #5BC0EB */
+    --primary-foreground: 220 49% 8%;
 
-    --secondary: 217 33% 17%;
+    --secondary: 216 35% 21%;
     --secondary-foreground: 215 20% 75%;
 
-    --muted: 217 33% 17%;
+    --muted: 216 35% 21%;
     --muted-foreground: 215 16% 47%;
 
-    --accent: 263 70% 68%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 198 78% 64%;
+    --accent-foreground: 220 49% 8%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 79% 63%; /* #EB5757 */
     --destructive-foreground: 210 40% 98%;
 
-    --warning: 45 93% 58%;
-    --warning-foreground: 222 47% 11%;
+    --warning: 45 86% 62%; /* #F2C94C */
+    --warning-foreground: 220 49% 8%;
+    
+    --success: 145 63% 42%; /* #27AE60 */
+    --success-foreground: 210 40% 98%;
 
-    --border: 217 33% 22%;
-    --input: 217 33% 22%;
-    --ring: 187 72% 61%;
+    --border: 219 33% 22%; /* #25324A */
+    --input: 219 33% 22%;
+    --ring: 198 78% 64%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 222 47% 11%;
+    --sidebar-background: 219 51% 12%; /* #0F1A2F */
     --sidebar-foreground: 215 20% 75%;
-    --sidebar-primary: 187 72% 61%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 217 33% 17%;
+    --sidebar-primary: 198 78% 64%;
+    --sidebar-primary-foreground: 220 49% 8%;
+    --sidebar-accent: 217 44% 15%;
     --sidebar-accent-foreground: 215 20% 75%;
-    --sidebar-border: 217 33% 22%;
-    --sidebar-ring: 187 72% 61%;
+    --sidebar-border: 219 33% 22%;
+    --sidebar-ring: 198 78% 64%;
 
-    --font-heading: 'Space Grotesk', sans-serif;
+    --font-heading: 'Inter', sans-serif;
     --font-body: 'Inter', sans-serif;
 
-    --gradient-signal: linear-gradient(135deg, hsl(187 72% 61% / 0.15), transparent);
-    --gradient-warning: linear-gradient(135deg, hsl(45 93% 58% / 0.15), transparent);
-    --gradient-insight: linear-gradient(135deg, hsl(263 70% 68% / 0.15), transparent);
+    --gradient-signal: linear-gradient(135deg, hsl(198 78% 64% / 0.15), transparent);
+    --gradient-warning: linear-gradient(135deg, hsl(45 86% 62% / 0.15), transparent);
+    --gradient-insight: linear-gradient(135deg, hsl(198 78% 64% / 0.15), transparent);
   }
 }
 

@@ -6,7 +6,11 @@ export default function InsightsPage() {
   const { data: insights, isLoading } = useQuery({
     queryKey: ["insights-all"],
     queryFn: async () => {
-      const { data } = await supabase.from("insights").select("*, projects(name)").order("created_at", { ascending: false });
+      const { data: ints } = await supabase.from("integrations").select("tool_name").eq("status", "connected");
+      const tools = ints?.map(i => i.tool_name) || [];
+      if (tools.length === 0) return [];
+
+      const { data } = await supabase.from("insights").select("*, projects(name)").in("tool_source", tools).order("created_at", { ascending: false });
       return data ?? [];
     },
   });

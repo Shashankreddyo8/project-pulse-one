@@ -6,15 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Filter, CheckCircle } from "lucide-react";
 
-const toolSources = ["GitHub", "Slack", "Jira", "Notion"];
 const eventTypes = ["task_created", "pull_request_opened", "message_sent", "task_completed", "review_requested", "deployment_triggered"];
 const entityTypes = ["task", "message", "pull_request", "issue", "document"];
 
 export default function EventsPage() {
   const [showForm, setShowForm] = useState(false);
+  const [filterSource, setFilterSource] = useState<string>("all");
   const queryClient = useQueryClient();
 
   const [form, setForm] = useState({
@@ -30,7 +32,11 @@ export default function EventsPage() {
   const { data: events, isLoading } = useQuery({
     queryKey: ["events"],
     queryFn: async () => {
-      const { data } = await supabase.from("events").select("*").order("event_timestamp", { ascending: false }).limit(50);
+      const { data: ints } = await supabase.from("integrations").select("tool_name").eq("status", "connected");
+      const tools = ints?.map(i => i.tool_name) || [];
+      if (tools.length === 0) return [];
+
+      const { data } = await supabase.from("events").select("*").in("tool_source", tools).order("event_timestamp", { ascending: false }).limit(50);
       return data ?? [];
     },
   });
@@ -66,18 +72,31 @@ export default function EventsPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const { data: connectedTools } = useQuery({
+    queryKey: ["connected-tools"],
+    queryFn: async () => {
+      const { data } = await supabase.from("integrations").select("tool_name").eq("status", "connected");
+      return (data ?? []).map((i) => i.tool_name);
+    },
+  });
+
   const toolColors: Record<string, string> = {
     GitHub: "text-primary",
     Slack: "text-warning",
     Jira: "text-accent",
     Notion: "text-foreground",
+    CRM: "text-primary",
   };
+
+  const filteredEvents = filterSource === "all"
+    ? events
+    : events?.filter((e) => e.tool_source === filterSource);
 
   return (
     <div>
       <PageHeader
         title="Events"
-        description="Simulate tool integrations by logging activity events"
+        description="Manage integrations and track activity events from connected tools"
         actions={
           <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "secondary" : "default"} size="sm">
             {showForm ? <X className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
@@ -86,7 +105,37 @@ export default function EventsPage() {
         }
       />
 
-      {showForm && (
+      <div className="mt-6">
+        {/* Filter bar */}
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground mr-1">Filter:</span>
+            <button
+              onClick={() => setFilterSource("all")}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                filterSource === "all"
+                  ? "bg-primary/20 border-primary/40 text-primary"
+                  : "border-border text-muted-foreground hover:border-primary/30"
+              }`}
+            >
+              All
+            </button>
+            {(connectedTools || []).map((source) => (
+              <button
+                key={source}
+                onClick={() => setFilterSource(source)}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1 ${
+                  filterSource === source
+                    ? "bg-primary/20 border-primary/40 text-primary"
+                    : "border-border text-muted-foreground hover:border-primary/30"
+                }`}
+              >
+                {source}
+              </button>
+            ))}
+          </div>
+
+          {showForm && (
         <div className="rounded-lg border border-primary/20 bg-card p-6 mb-8 animate-fade-in">
           <h3 className="font-heading text-sm font-medium text-foreground mb-4">New Event Entry</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -95,7 +144,7 @@ export default function EventsPage() {
               <Select value={form.tool_source} onValueChange={(v) => setForm({ ...form, tool_source: v })}>
                 <SelectTrigger><SelectValue placeholder="Select tool" /></SelectTrigger>
                 <SelectContent>
-                  {toolSources.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  {(connectedTools || []).map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -153,26 +202,31 @@ export default function EventsPage() {
 
       {isLoading ? (
         <div className="text-muted-foreground text-sm">Loading events…</div>
-      ) : events && events.length > 0 ? (
+      ) : filteredEvents && filteredEvents.length > 0 ? (
         <div className="space-y-0">
-          {events.map((event) => (
+          {filteredEvents.map((event) => (
             <div key={event.id} className="py-4 border-b border-border animate-fade-in">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3">
-                  <span className={`font-heading text-xs font-medium ${toolColors[event.tool_source] || "text-foreground"}`}>
-                    {event.tool_source}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`font-heading text-xs font-medium ${toolColors[event.tool_source] || "text-foreground"}`}>
+                      {event.tool_source}
+                    </span>
+                    {connectedTools?.includes(event.tool_source) && (
+                      <CheckCircle className="w-3 h-3 text-green-500" />
+                    )}
+                  </div>
                   <div>
                     <p className="text-sm text-foreground">
                       <span className="text-muted-foreground">{event.actor ?? "Unknown"}</span>
                       {" · "}
-                      <span className="font-heading text-xs">{event.event_type.replace(/_/g, " ")}</span>
+                      <span className="font-heading text-xs">{event?.event_type?.replace(/_/g, " ") || event?.event_type || "Event"}</span>
                     </p>
-                    {event.description && <p className="text-xs text-muted-foreground mt-0.5">{event.description}</p>}
+                    {event?.description && <p className="text-xs text-muted-foreground mt-0.5">{event.description}</p>}
                   </div>
                 </div>
                 <span className="text-[10px] text-muted-foreground font-heading shrink-0">
-                  {new Date(event.event_timestamp).toLocaleString()}
+                  {event.event_timestamp ? new Date(event.event_timestamp).toLocaleString() : ""}
                 </span>
               </div>
             </div>
@@ -183,6 +237,7 @@ export default function EventsPage() {
           No events recorded. Click "Log Event" to simulate tool activity.
         </div>
       )}
+      </div>
     </div>
   );
 }

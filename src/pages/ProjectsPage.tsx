@@ -1,8 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { PageHeader } from "@/components/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { Plus, X } from "lucide-react";
 
 export default function ProjectsPage() {
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const queryClient = useQueryClient();
+
   const { data: projects, isLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
@@ -31,6 +42,40 @@ export default function ProjectsPage() {
     },
   });
 
+  const createProject = useMutation({
+    mutationFn: async () => {
+      // First ensure an organization exists
+      let { data: orgs } = await supabase.from("organizations").select("id").limit(1);
+      let orgId: string;
+      if (!orgs || orgs.length === 0) {
+        const { data: newOrg, error: orgError } = await supabase
+          .from("organizations")
+          .insert({ name: "Default Organization", slug: "default" })
+          .select("id")
+          .single();
+        if (orgError) throw orgError;
+        orgId = newOrg.id;
+      } else {
+        orgId = orgs[0].id;
+      }
+      const { error } = await supabase.from("projects").insert({
+        name: name.trim(),
+        description: description.trim() || null,
+        organization_id: orgId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Project created");
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["projects-count"] });
+      setName("");
+      setDescription("");
+      setShowForm(false);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const statusColors: Record<string, string> = {
     active: "bg-primary/20 text-primary",
     paused: "bg-warning/20 text-warning",
@@ -39,7 +84,38 @@ export default function ProjectsPage() {
 
   return (
     <div>
-      <PageHeader title="Projects" description="All projects in your organization" />
+      <PageHeader
+        title="Projects"
+        description="All projects in your organization"
+        actions={
+          <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "secondary" : "default"} size="sm">
+            {showForm ? <X className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+            {showForm ? "Cancel" : "New Project"}
+          </Button>
+        }
+      />
+
+      {showForm && (
+        <div className="rounded-lg border border-primary/20 bg-card p-6 mb-8 animate-fade-in">
+          <h3 className="font-heading text-sm font-medium text-foreground mb-4">Create Project</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs text-muted-foreground">Project Name *</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Backend API" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Description</Label>
+              <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Brief description" />
+            </div>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <Button onClick={() => createProject.mutate()} disabled={!name.trim() || createProject.isPending} size="sm">
+              {createProject.isPending ? "Creating…" : "Create Project"}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="text-muted-foreground text-sm">Loading projects…</div>
       ) : projects && projects.length > 0 ? (

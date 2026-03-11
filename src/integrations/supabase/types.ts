@@ -61,6 +61,36 @@ export type Database = {
           },
         ]
       }
+      integrations: {
+        Row: {
+          id: string
+          tool_name: string
+          url: string
+          status: string
+          connected_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tool_name: string
+          url: string
+          status?: string
+          connected_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tool_name?: string
+          url?: string
+          status?: string
+          connected_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       insights: {
         Row: {
           category: string | null
@@ -70,6 +100,7 @@ export type Database = {
           id: string
           project_id: string | null
           title: string
+          tool_source: string | null
         }
         Insert: {
           category?: string | null
@@ -79,6 +110,7 @@ export type Database = {
           id?: string
           project_id?: string | null
           title: string
+          tool_source?: string | null
         }
         Update: {
           category?: string | null
@@ -88,6 +120,7 @@ export type Database = {
           id?: string
           project_id?: string | null
           title?: string
+          tool_source?: string | null
         }
         Relationships: [
           {
@@ -173,6 +206,7 @@ export type Database = {
           status: string | null
           title: string
           updated_at: string
+          tool_source: string | null
         }
         Insert: {
           action_type: string
@@ -185,6 +219,7 @@ export type Database = {
           status?: string | null
           title: string
           updated_at?: string
+          tool_source?: string | null
         }
         Update: {
           action_type?: string
@@ -197,6 +232,7 @@ export type Database = {
           status?: string | null
           title?: string
           updated_at?: string
+          tool_source?: string | null
         }
         Relationships: [
           {
@@ -227,6 +263,7 @@ export type Database = {
           resolved: boolean | null
           severity: string
           signal_type: string
+          tool_source: string | null
         }
         Insert: {
           created_at?: string
@@ -239,6 +276,7 @@ export type Database = {
           resolved?: boolean | null
           severity?: string
           signal_type: string
+          tool_source?: string | null
         }
         Update: {
           created_at?: string
@@ -251,6 +289,7 @@ export type Database = {
           resolved?: boolean | null
           severity?: string
           signal_type?: string
+          tool_source?: string | null
         }
         Relationships: [
           {

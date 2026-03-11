@@ -20,7 +20,11 @@ export default function RecommendationsPage() {
   const { data: recommendations, isLoading } = useQuery({
     queryKey: ["recommendations"],
     queryFn: async () => {
-      const { data } = await supabase.from("recommendations").select("*, projects(name)").order("created_at", { ascending: false });
+      const { data: ints } = await supabase.from("integrations").select("tool_name").eq("status", "connected");
+      const tools = ints?.map(i => i.tool_name) || [];
+      if (tools.length === 0) return [];
+
+      const { data } = await supabase.from("recommendations").select("*, projects(name)").in("tool_source", tools).order("created_at", { ascending: false });
       return data ?? [];
     },
   });
@@ -44,7 +48,7 @@ export default function RecommendationsPage() {
                     <p className="text-sm text-muted-foreground mt-1">{rec.description}</p>
                     <div className="flex items-center gap-3 mt-2">
                       <span className="text-[10px] font-heading uppercase tracking-wider text-muted-foreground">
-                        {rec.action_type.replace(/_/g, " ")}
+                        {rec?.action_type?.replace(/_/g, " ") || rec?.action_type || "Action"}
                       </span>
                       {(rec as any).projects?.name && (
                         <span className="text-[10px] text-primary">
