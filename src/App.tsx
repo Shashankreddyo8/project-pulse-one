@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import ProjectsPage from "./pages/ProjectsPage";
+import ProjectDetailsPage from "./pages/ProjectDetailsPage";
 import EventsPage from "./pages/EventsPage";
 import SignalsPage from "./pages/SignalsPage";
 import InsightsPage from "./pages/InsightsPage";
@@ -45,6 +46,13 @@ const App = () => (
             <ProtectedRoute>
               <DashboardWrapper>
                 <ProjectsPage />
+              </DashboardWrapper>
+            </ProtectedRoute>
+          } />
+          <Route path="/app/projects/:id" element={
+            <ProtectedRoute>
+              <DashboardWrapper>
+                <ProjectDetailsPage />
               </DashboardWrapper>
             </ProtectedRoute>
           } />

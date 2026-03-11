@@ -95,6 +95,9 @@ export default {
         "hover-lift": {
           "0%": { transform: "translateY(0)" },
           "100%": { transform: "translateY(-2px)" }
+        },
+        shimmer: {
+          "100%": { transform: "translateX(100%)" }
         }
       },
       animation: {
@@ -102,6 +105,7 @@ export default {
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.4s ease-out forwards",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        "shimmer": "shimmer 2s infinite",
       },
     },
   },

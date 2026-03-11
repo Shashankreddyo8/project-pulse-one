@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,57 +6,57 @@
 
 @layer base {
   :root {
-    --background: 220 49% 8%; /* #0B1220 */
-    --foreground: 215 20% 75%;
+    --background: 222 47% 11%; /* #0F172A (Deep Slate) */
+    --foreground: 210 40% 98%; /* #FFFFFF */
 
-    --card: 217 44% 15%; /* #162338 */
-    --card-foreground: 215 20% 75%;
+    --card: 222 47% 11%; /* #0F172A */
+    --card-foreground: 210 40% 98%;
 
-    --popover: 217 44% 15%;
-    --popover-foreground: 215 20% 75%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 198 78% 64%; /* #5BC0EB */
-    --primary-foreground: 220 49% 8%;
+    --primary: 239 84% 67%; /* #6366F1 (Indigo) */
+    --primary-foreground: 210 40% 98%;
 
-    --secondary: 216 35% 21%;
-    --secondary-foreground: 215 20% 75%;
+    --secondary: 189 94% 43%; /* #06B6D4 (Cyan) */
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 216 35% 21%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%; /* #94A3B8 (Slate) */
 
-    --accent: 198 78% 64%;
-    --accent-foreground: 220 49% 8%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 79% 63%; /* #EB5757 */
+    --destructive: 0 84% 60%; /* #EF4444 (Red) */
     --destructive-foreground: 210 40% 98%;
 
-    --warning: 45 86% 62%; /* #F2C94C */
-    --warning-foreground: 220 49% 8%;
+    --warning: 38 92% 50%; /* #F59E0B (Amber) */
+    --warning-foreground: 222 47% 11%;
     
-    --success: 145 63% 42%; /* #27AE60 */
+    --success: 142 71% 45%; /* #22C55E (Emerald) */
     --success-foreground: 210 40% 98%;
 
-    --border: 219 33% 22%; /* #25324A */
-    --input: 219 33% 22%;
-    --ring: 198 78% 64%;
+    --border: 217 33% 17%; /* Subtly lighter than background */
+    --input: 217 33% 17%;
+    --ring: 239 84% 67%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem; /* 12px rounded corners */
 
-    --sidebar-background: 219 51% 12%; /* #0F1A2F */
-    --sidebar-foreground: 215 20% 75%;
-    --sidebar-primary: 198 78% 64%;
-    --sidebar-primary-foreground: 220 49% 8%;
-    --sidebar-accent: 217 44% 15%;
-    --sidebar-accent-foreground: 215 20% 75%;
-    --sidebar-border: 219 33% 22%;
-    --sidebar-ring: 198 78% 64%;
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 239 84% 67%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 217 33% 17%; /* Highlight state for sidebar */
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 17%;
+    --sidebar-ring: 239 84% 67%;
 
     --font-heading: 'Inter', sans-serif;
     --font-body: 'Inter', sans-serif;
 
-    --gradient-signal: linear-gradient(135deg, hsl(198 78% 64% / 0.15), transparent);
-    --gradient-warning: linear-gradient(135deg, hsl(45 86% 62% / 0.15), transparent);
-    --gradient-insight: linear-gradient(135deg, hsl(198 78% 64% / 0.15), transparent);
+    --gradient-signal: linear-gradient(135deg, hsl(239 84% 67% / 0.15), transparent);
+    --gradient-warning: linear-gradient(135deg, hsl(38 92% 50% / 0.15), transparent);
+    --gradient-insight: linear-gradient(135deg, hsl(189 94% 43% / 0.15), transparent);
   }
 }
 

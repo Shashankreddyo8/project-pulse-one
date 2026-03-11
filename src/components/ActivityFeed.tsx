@@ -15,14 +15,15 @@ export function ActivityFeed() {
   const { data: recentEvents, isLoading } = useQuery({
     queryKey: ["recent-events", "feed"],
     queryFn: async () => {
-      const { data: ints } = await supabase.from("integrations").select("tool_name").eq("status", "connected");
-      const tools = ints?.map(i => i.tool_name) || [];
-      if (tools.length === 0) return [];
+      // Assuming we get the first project in this MVP
+      const { data: projects } = await supabase.from("projects").select("id").limit(1);
+      const projectId = projects?.[0]?.id;
+      if (!projectId) return [];
 
       const { data } = await supabase
         .from("events")
         .select("*")
-        .in("tool_source", tools)
+        .eq("project_id", projectId)
         .order("event_timestamp", { ascending: false })
         .limit(8);
       return data ?? [];
@@ -53,14 +54,14 @@ export function ActivityFeed() {
               <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-lg border border-border bg-card/50 shadow-sm transition-all hover:bg-muted/30 hover:shadow-md hover:border-primary/20">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-heading text-xs font-semibold text-primary/80 capitalize">
-                    {event.tool_source}
+                   Pulse Engine
                   </span>
                   <time className="text-[10px] text-muted-foreground font-mono">
                     {new Date(event.event_timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                   </time>
                 </div>
                 <p className="text-sm font-medium text-foreground">
-                  <span className="text-muted-foreground font-normal mr-1">{event?.actor || "System"}</span>
+                  <span className="text-muted-foreground font-normal mr-1">System</span>
                   {event?.event_type?.replace(/_/g, " ") || event?.event_type || "Event"}
                 </p>
                 {event?.description && (

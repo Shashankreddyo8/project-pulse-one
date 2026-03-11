@@ -96,29 +96,45 @@ export default function IntegrationsPanel() {
   const queryClient = useQueryClient();
 
   const { data: integrations, isLoading } = useQuery({
-    queryKey: ["integrations"],
+    queryKey: ["project-tools"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("integrations")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      // Get the first project for this sample
+      const { data: projects } = await supabase.from("projects").select("id").limit(1);
+      const projectId = projects?.[0]?.id;
+      if (!projectId) return [];
+
+      const res = await fetch(`/api/project-tools/${projectId}`);
+      if (!res.ok) {
+        throw new Error("Failed to fetch tools from backend api");
+      }
+      const json = await res.json();
+      return json.tools ?? [];
     },
   });
 
   const connectIntegration = useMutation({
     mutationFn: async ({ toolName, url }: { toolName: string; url: string }) => {
-      const { error } = await supabase.from("integrations").insert({
-        tool_name: toolName,
-        url: url,
-        status: "connected",
+      const { data: projects } = await supabase.from("projects").select("id").limit(1);
+      const projectId = projects?.[0]?.id;
+      if (!projectId) throw new Error("No active project found.");
+
+      const res = await fetch('/api/connect-tool', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ projectId, toolType: toolName, url })
       });
-      if (error) throw error;
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Failed to connect tool via API");
+      }
+      return json;
     },
     onSuccess: (_data, variables) => {
-      toast.success(`${variables.toolName} connected successfully`);
-      queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      toast.success(`${variables.toolName} connected and data extracted!`);
+      queryClient.invalidateQueries({ queryKey: ["project-tools"] });
       setUrls((prev) => ({ ...prev, [variables.toolName]: "" }));
     },
     onError: (err: Error) => toast.error(err.message),
@@ -126,18 +142,18 @@ export default function IntegrationsPanel() {
 
   const disconnectIntegration = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("integrations").delete().eq("id", id);
+      const { error } = await supabase.from("tools" as any).delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Integration disconnected");
-      queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      queryClient.invalidateQueries({ queryKey: ["project-tools"] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
 
   const getConnectedIntegration = (toolName: string) =>
-    integrations?.find((i) => i.tool_name === toolName);
+    integrations?.find((i: any) => i.tool_type.toLowerCase() === toolName.toLowerCase());
 
   const handleConnect = (config: IntegrationConfig) => {
     const url = urls[config.key]?.trim();
@@ -177,7 +193,7 @@ export default function IntegrationsPanel() {
         </div>
         <div className="ml-auto flex gap-1.5">
           {INTEGRATIONS.map((config) => {
-            const isConnected = integrations?.some((i) => i.tool_name === config.key);
+            const isConnected = integrations?.some((i: any) => i.tool_type.toLowerCase() === config.key.toLowerCase() && i.status === 'connected');
             return (
               <div
                 key={config.key}
@@ -196,19 +212,22 @@ export default function IntegrationsPanel() {
       </div>
 
       <p className="text-sm text-muted-foreground mb-6">
-        Connect your tools by providing their URLs. Once connected, events from these platforms will appear in your event feed.
+        Connect your tools by providing their URLs. The system will automatically fetch, extract, and analyze useful signals from these sources.
       </p>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {INTEGRATIONS.map((config) => {
           const connected = getConnectedIntegration(config.key);
+          const hasFailed = connected?.status === 'connection failed';
+          const isConnectedStatus = connected?.status === 'connected';
+
           return (
             <Card
               key={config.key}
               className={`relative overflow-hidden transition-all duration-200 ${
-                connected ? "border-primary/40 shadow-md" : "hover:border-primary/20"
+                isConnectedStatus ? "border-primary/40 shadow-md" : "hover:border-primary/20"
               }`}
             >
-              {connected && (
+              {isConnectedStatus && (
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-primary/60" />
               )}
               <CardHeader className="pb-3">
@@ -219,10 +238,14 @@ export default function IntegrationsPanel() {
                     </div>
                     <div>
                       <CardTitle className="text-base">{config.name}</CardTitle>
-                      {connected ? (
+                      {isConnectedStatus ? (
                         <Badge variant="default" className="mt-1 text-[10px] bg-green-600 hover:bg-green-700">
                           <CheckCircle className="w-3 h-3 mr-1" />
-                          Connected
+                          Connected & Scraping
+                        </Badge>
+                      ) : hasFailed ? (
+                        <Badge variant="destructive" className="mt-1 text-[10px]">
+                          Connection Failed
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="mt-1 text-[10px]">
@@ -236,7 +259,7 @@ export default function IntegrationsPanel() {
               </CardHeader>
               <CardContent>
                 {connected ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <div className="flex items-center gap-2 bg-muted/50 rounded-md p-2">
                       <Link2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       <span className="text-xs text-muted-foreground truncate">{connected.url}</span>
@@ -249,9 +272,26 @@ export default function IntegrationsPanel() {
                         <ExternalLink className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground transition-colors" />
                       </a>
                     </div>
-                    <div className="flex items-center justify-between">
+                    
+                    {/* Display Extracted Signals */}
+                    {connected.data && Object.keys(connected.data).length > 0 && (
+                       <div className="grid grid-cols-2 gap-3 py-2 border-t border-border/40">
+                         {Object.entries(connected.data).map(([key, value]) => (
+                           <div key={key} className="flex flex-col">
+                             <span className="text-[10px] uppercase font-heading tracking-wider text-muted-foreground mb-0.5">
+                               {key.replace(/_/g, ' ')}
+                             </span>
+                             <span className="text-sm font-medium text-foreground truncate">
+                               {String(value)}
+                             </span>
+                           </div>
+                         ))}
+                       </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t border-border/40">
                       <span className="text-[10px] text-muted-foreground">
-                        Connected {new Date(connected.connected_at).toLocaleDateString()}
+                        Last sync: {new Date(connected.connected_at).toLocaleString()}
                       </span>
                       <Button
                         variant="ghost"
