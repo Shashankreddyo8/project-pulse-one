@@ -150,4 +150,82 @@ router.get('/project-tools/:projectId', async (req, res) => {
   }
 });
 
+// POST /api/refresh-events/:projectId  - Re-scrape all connected tools and regenerate events
+router.post('/refresh-events/:projectId', async (req, res) => {
+  const { projectId } = req.params;
+
+  try {
+    // Get all connected tools for this project
+    const { data: tools, error: toolErr } = await supabase
+      .from('tools')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('status', 'connected');
+
+    if (toolErr) throw toolErr;
+
+    if (!tools || tools.length === 0) {
+      return res.json({ success: false, message: 'No connected tools found for this project.' });
+    }
+
+    // Re-scrape each tool
+    for (const tool of tools) {
+      try {
+        const extractedData = await fetchAndExtract(tool.url, tool.tool_type);
+
+        const dataEntries = Object.entries(extractedData).map(([key, value]) => ({
+          tool_id: tool.id,
+          data_key: key,
+          data_value: String(value)
+        }));
+
+        await supabase.from('tool_data').delete().eq('tool_id', tool.id);
+        await supabase.from('tool_data').insert(dataEntries);
+        
+        console.log(`Re-scraped ${tool.tool_type} for project ${projectId}`);
+      } catch (scrapeErr) {
+        console.error(`Failed to re-scrape ${tool.tool_type}:`, scrapeErr.message);
+      }
+    }
+
+    // Re-run analysis engine to generate fresh events, risks, recommendations
+    const analysisResults = await analyzeProject(projectId, supabase);
+
+    res.json({
+      success: true,
+      toolsRefreshed: tools.length,
+      analysisResults,
+    });
+  } catch (error) {
+    console.error('Error refreshing events:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/project-events/:projectId - Fetch events for a specific project
+router.get('/project-events/:projectId', async (req, res) => {
+  const { projectId } = req.params;
+  const { type, limit = 50 } = req.query;
+
+  try {
+    let query = supabase
+      .from('events')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('event_timestamp', { ascending: false })
+      .limit(parseInt(limit));
+
+    if (type && type !== 'all') {
+      query = query.eq('event_type', type);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.json({ events: data ?? [] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

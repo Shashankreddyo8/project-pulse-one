@@ -3,240 +3,295 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, X, Filter, CheckCircle } from "lucide-react";
+import {
+  RefreshCw,
+  Filter,
+  GitCommit,
+  GitPullRequest,
+  AlertCircle,
+  CheckCircle2,
+  Zap,
+  Info,
+  Globe,
+} from "lucide-react";
 
-const eventTypes = ["task_created", "pull_request_opened", "message_sent", "task_completed", "review_requested", "deployment_triggered"];
-const entityTypes = ["task", "message", "pull_request", "issue", "document"];
+const EVENT_TYPE_CONFIG: Record<string, { label: string; icon: JSX.Element; color: string; bg: string }> = {
+  code_update: {
+    label: "Code Update",
+    icon: <GitCommit className="w-4 h-4" />,
+    color: "text-primary",
+    bg: "bg-primary/10",
+  },
+  system_sync: {
+    label: "Sync",
+    icon: <RefreshCw className="w-4 h-4" />,
+    color: "text-accent",
+    bg: "bg-accent/10",
+  },
+  system_alert: {
+    label: "Alert",
+    icon: <AlertCircle className="w-4 h-4" />,
+    color: "text-destructive",
+    bg: "bg-destructive/10",
+  },
+  pull_request_opened: {
+    label: "Pull Request",
+    icon: <GitPullRequest className="w-4 h-4" />,
+    color: "text-warning",
+    bg: "bg-warning/10",
+  },
+  task_completed: {
+    label: "Task Done",
+    icon: <CheckCircle2 className="w-4 h-4" />,
+    color: "text-success",
+    bg: "bg-success/10",
+  },
+};
+
+function getEventConfig(type: string) {
+  return EVENT_TYPE_CONFIG[type] ?? {
+    label: type.replace(/_/g, " "),
+    icon: <Info className="w-4 h-4" />,
+    color: "text-muted-foreground",
+    bg: "bg-muted/30",
+  };
+}
 
 export default function EventsPage() {
-  const [showForm, setShowForm] = useState(false);
-  const [filterSource, setFilterSource] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>("all");
   const queryClient = useQueryClient();
 
-  const [form, setForm] = useState({
-    tool_source: "",
-    event_type: "",
-    entity_type: "",
-    entity_id: "",
-    actor: "",
-    description: "",
-    project_id: "",
+  // Get first project (MVP assumption)
+  const { data: projectId } = useQuery({
+    queryKey: ["first-project-id"],
+    queryFn: async () => {
+      const { data } = await supabase.from("projects").select("id").limit(1);
+      return data?.[0]?.id ?? null;
+    },
   });
 
+  // Fetch events for the project from our backend
   const { data: events, isLoading } = useQuery({
-    queryKey: ["events"],
+    queryKey: ["project-events", projectId, filterType],
+    enabled: !!projectId,
     queryFn: async () => {
-      const { data: ints } = await supabase.from("integrations").select("tool_name").eq("status", "connected");
-      const tools = ints?.map(i => i.tool_name) || [];
-      if (tools.length === 0) return [];
+      const url =
+        filterType === "all"
+          ? `/api/project-events/${projectId}`
+          : `/api/project-events/${projectId}?type=${filterType}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        // Fallback to Supabase direct query if backend unreachable
+        const { data } = await supabase
+          .from("events")
+          .select("*")
+          .eq("project_id", projectId)
+          .order("event_timestamp", { ascending: false })
+          .limit(50);
+        return data ?? [];
+      }
+      const json = await res.json();
+      return json.events ?? [];
+    },
+  });
 
-      const { data } = await supabase.from("events").select("*").in("tool_source", tools).order("event_timestamp", { ascending: false }).limit(50);
+  // Fetch connected GitHub tool info
+  const { data: connectedTools } = useQuery({
+    queryKey: ["connected-github-tools", projectId],
+    enabled: !!projectId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("tools" as any)
+        .select("tool_type, url, status, connected_at")
+        .eq("project_id", projectId)
+        .eq("status", "connected");
       return data ?? [];
     },
   });
 
-  const { data: projects } = useQuery({
-    queryKey: ["projects-list"],
-    queryFn: async () => {
-      const { data } = await supabase.from("projects").select("id, name");
-      return data ?? [];
-    },
-  });
+  const githubTools = (connectedTools as any[])?.filter(
+    (t: any) => t.tool_type?.toLowerCase() === "github"
+  );
 
-  const insertEvent = useMutation({
+  // Refresh mutation — re-scrapes tools and regenerates events
+  const refreshEvents = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("events").insert({
-        tool_source: form.tool_source,
-        event_type: form.event_type,
-        entity_type: form.entity_type,
-        entity_id: form.entity_id || null,
-        actor: form.actor || null,
-        description: form.description || null,
-        project_id: form.project_id || null,
+      if (!projectId) throw new Error("No project found.");
+      const res = await fetch(`/api/refresh-events/${projectId}`, {
+        method: "POST",
       });
-      if (error) throw error;
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || json.error || "Refresh failed");
+      }
+      return json;
     },
-    onSuccess: () => {
-      toast.success("Event recorded");
-      queryClient.invalidateQueries({ queryKey: ["events"] });
+    onSuccess: (data) => {
+      toast.success(`Refreshed ${data.toolsRefreshed} tool(s). Events updated.`);
+      queryClient.invalidateQueries({ queryKey: ["project-events"] });
+      queryClient.invalidateQueries({ queryKey: ["risks-active"] });
+      queryClient.invalidateQueries({ queryKey: ["latest-recommendations"] });
       queryClient.invalidateQueries({ queryKey: ["recent-events"] });
-      setForm({ tool_source: "", event_type: "", entity_type: "", entity_id: "", actor: "", description: "", project_id: "" });
-      setShowForm(false);
     },
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const { data: connectedTools } = useQuery({
-    queryKey: ["connected-tools"],
-    queryFn: async () => {
-      const { data } = await supabase.from("integrations").select("tool_name").eq("status", "connected");
-      return (data ?? []).map((i) => i.tool_name);
-    },
-  });
-
-  const toolColors: Record<string, string> = {
-    GitHub: "text-primary",
-    Slack: "text-warning",
-    Jira: "text-accent",
-    Notion: "text-foreground",
-    CRM: "text-primary",
-  };
-
-  const filteredEvents = filterSource === "all"
-    ? events
-    : events?.filter((e) => e.tool_source === filterSource);
+  const uniqueTypes = Array.from(new Set(events?.map((e: any) => e.event_type) ?? []));
 
   return (
     <div>
       <PageHeader
-        title="Events"
-        description="Manage integrations and track activity events from connected tools"
+        title="GitHub Events"
+        description="Live activity events extracted from your connected GitHub repositories and tools"
         actions={
-          <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "secondary" : "default"} size="sm">
-            {showForm ? <X className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-            {showForm ? "Cancel" : "Log Event"}
+          <Button
+            onClick={() => refreshEvents.mutate()}
+            disabled={refreshEvents.isPending || !projectId}
+            size="sm"
+          >
+            <RefreshCw
+              className={`w-4 h-4 mr-2 ${refreshEvents.isPending ? "animate-spin" : ""}`}
+            />
+            {refreshEvents.isPending ? "Refreshing…" : "Refresh from GitHub"}
           </Button>
         }
       />
 
-      <div className="mt-6">
-        {/* Filter bar */}
-        <div className="flex items-center gap-2 mb-4 flex-wrap">
-            <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground mr-1">Filter:</span>
-            <button
-              onClick={() => setFilterSource("all")}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                filterSource === "all"
-                  ? "bg-primary/20 border-primary/40 text-primary"
-                  : "border-border text-muted-foreground hover:border-primary/30"
-              }`}
-            >
-              All
-            </button>
-            {(connectedTools || []).map((source) => (
+      <div className="mt-6 space-y-6">
+        {/* Connected GitHub Sources Banner */}
+        {githubTools && githubTools.length > 0 && (
+          <div className="flex flex-wrap gap-3">
+            {(githubTools as any[]).map((tool: any, i: number) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-card border border-primary/20 text-sm"
+              >
+                <Globe className="w-3.5 h-3.5 text-primary" />
+                <span className="text-foreground font-medium truncate max-w-[200px]">
+                  {tool.url}
+                </span>
+                <Badge
+                  variant="default"
+                  className="text-[10px] bg-green-600 hover:bg-green-700"
+                >
+                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                  Live
+                </Badge>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Filter Bar */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground mr-1">Filter:</span>
+          <button
+            onClick={() => setFilterType("all")}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+              filterType === "all"
+                ? "bg-primary/20 border-primary/40 text-primary"
+                : "border-border text-muted-foreground hover:border-primary/30"
+            }`}
+          >
+            All
+          </button>
+          {uniqueTypes.map((type) => {
+            const cfg = getEventConfig(type as string);
+            return (
               <button
-                key={source}
-                onClick={() => setFilterSource(source)}
+                key={type}
+                onClick={() => setFilterType(type as string)}
                 className={`text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1 ${
-                  filterSource === source
+                  filterType === type
                     ? "bg-primary/20 border-primary/40 text-primary"
                     : "border-border text-muted-foreground hover:border-primary/30"
                 }`}
               >
-                {source}
+                {cfg.label}
               </button>
+            );
+          })}
+        </div>
+
+        {/* Events List */}
+        {isLoading ? (
+          <div className="space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <div
+                key={i}
+                className="h-16 rounded-lg bg-card border border-border animate-pulse"
+              />
             ))}
           </div>
+        ) : events && events.length > 0 ? (
+          <div className="space-y-2">
+            {events.map((event: any) => {
+              const cfg = getEventConfig(event.event_type);
+              return (
+                <div
+                  key={event.id}
+                  className="flex items-start gap-4 p-4 rounded-lg border border-border bg-card hover:border-primary/20 hover:bg-card/80 transition-all"
+                >
+                  {/* Icon */}
+                  <div
+                    className={`mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${cfg.bg} ${cfg.color}`}
+                  >
+                    {cfg.icon}
+                  </div>
 
-          {showForm && (
-        <div className="rounded-lg border border-primary/20 bg-card p-6 mb-8 animate-fade-in">
-          <h3 className="font-heading text-sm font-medium text-foreground mb-4">New Event Entry</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-xs text-muted-foreground">Tool Source *</Label>
-              <Select value={form.tool_source} onValueChange={(v) => setForm({ ...form, tool_source: v })}>
-                <SelectTrigger><SelectValue placeholder="Select tool" /></SelectTrigger>
-                <SelectContent>
-                  {(connectedTools || []).map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Event Type *</Label>
-              <Select value={form.event_type} onValueChange={(v) => setForm({ ...form, event_type: v })}>
-                <SelectTrigger><SelectValue placeholder="Select event type" /></SelectTrigger>
-                <SelectContent>
-                  {eventTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Entity Type *</Label>
-              <Select value={form.entity_type} onValueChange={(v) => setForm({ ...form, entity_type: v })}>
-                <SelectTrigger><SelectValue placeholder="Select entity type" /></SelectTrigger>
-                <SelectContent>
-                  {entityTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Project</Label>
-              <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Select project (optional)" /></SelectTrigger>
-                <SelectContent>
-                  {projects?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Entity ID</Label>
-              <Input value={form.entity_id} onChange={(e) => setForm({ ...form, entity_id: e.target.value })} placeholder="e.g. TASK-42" />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Actor / User</Label>
-              <Input value={form.actor} onChange={(e) => setForm({ ...form, actor: e.target.value })} placeholder="e.g. john.doe" />
-            </div>
-            <div className="md:col-span-2">
-              <Label className="text-xs text-muted-foreground">Description</Label>
-              <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What happened?" />
-            </div>
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span
+                        className={`text-xs font-semibold font-heading uppercase tracking-wider ${cfg.color}`}
+                      >
+                        {cfg.label}
+                      </span>
+                      <Zap className="w-3 h-3 text-muted-foreground/50" />
+                      <span className="text-xs text-muted-foreground">Pulse Engine</span>
+                    </div>
+                    <p className="text-sm text-foreground">
+                      {event.description || event.event_type?.replace(/_/g, " ")}
+                    </p>
+                  </div>
+
+                  {/* Timestamp */}
+                  <time className="text-[11px] text-muted-foreground font-mono shrink-0 mt-0.5">
+                    {event.event_timestamp
+                      ? new Date(event.event_timestamp).toLocaleString([], {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "—"}
+                  </time>
+                </div>
+              );
+            })}
           </div>
-          <div className="mt-4 flex justify-end">
+        ) : (
+          <div className="text-center py-20 border border-dashed border-border rounded-xl">
+            <GitCommit className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+            <h3 className="text-sm font-medium text-foreground mb-1">No events yet</h3>
+            <p className="text-xs text-muted-foreground max-w-xs mx-auto mb-6">
+              Connect a GitHub repository from the Integrations page, then click{" "}
+              <strong>Refresh from GitHub</strong> to pull live events.
+            </p>
             <Button
-              onClick={() => insertEvent.mutate()}
-              disabled={!form.tool_source || !form.event_type || !form.entity_type || insertEvent.isPending}
+              variant="outline"
               size="sm"
+              onClick={() => refreshEvents.mutate()}
+              disabled={refreshEvents.isPending}
             >
-              {insertEvent.isPending ? "Recording…" : "Record Event"}
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh Now
             </Button>
           </div>
-        </div>
-      )}
-
-      {isLoading ? (
-        <div className="text-muted-foreground text-sm">Loading events…</div>
-      ) : filteredEvents && filteredEvents.length > 0 ? (
-        <div className="space-y-0">
-          {filteredEvents.map((event) => (
-            <div key={event.id} className="py-4 border-b border-border animate-fade-in">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`font-heading text-xs font-medium ${toolColors[event.tool_source] || "text-foreground"}`}>
-                      {event.tool_source}
-                    </span>
-                    {connectedTools?.includes(event.tool_source) && (
-                      <CheckCircle className="w-3 h-3 text-green-500" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-foreground">
-                      <span className="text-muted-foreground">{event.actor ?? "Unknown"}</span>
-                      {" · "}
-                      <span className="font-heading text-xs">{event?.event_type?.replace(/_/g, " ") || event?.event_type || "Event"}</span>
-                    </p>
-                    {event?.description && <p className="text-xs text-muted-foreground mt-0.5">{event.description}</p>}
-                  </div>
-                </div>
-                <span className="text-[10px] text-muted-foreground font-heading shrink-0">
-                  {event.event_timestamp ? new Date(event.event_timestamp).toLocaleString() : ""}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-20 text-muted-foreground text-sm">
-          No events recorded. Click "Log Event" to simulate tool activity.
-        </div>
-      )}
+        )}
       </div>
     </div>
   );
